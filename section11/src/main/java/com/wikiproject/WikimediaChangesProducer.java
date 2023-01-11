@@ -14,6 +14,8 @@ public class WikimediaChangesProducer {
     public static void main( String[] args ) throws InterruptedException
     {
         String bootstrapServers = "127.0.0.1:9092";
+        String topic = "wikimedia.recentchange";
+        String url = "https://stream.wikimedia.org/v2/stream/recentchange";
 
         // create Producer Properties
         Properties properties = new Properties();
@@ -23,11 +25,9 @@ public class WikimediaChangesProducer {
         
         // create the Producer
         KafkaProducer<String, String> producer = new KafkaProducer<>(properties);
-        String topic = "wikimedia.recentchange";
-
+        
         //Build an event source using a handler and a URL
         WikimediaChangeHandler eventHandler = new WikimediaChangeHandler(producer, topic);
-        String url = "https://stream.wikimedia.org/v2/stream/recentchange";
         EventSource.Builder builder = new EventSource.Builder(eventHandler, URI.create(url));
         EventSource eventSource = builder.build();
 

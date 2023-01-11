@@ -38,9 +38,13 @@ import java.util.Properties;
  */
 public class App 
 {
-    static String connString = "http://172.19.0.2:9200";
-    static String groupId = "consumer-opensearch-demo";
+    static String connNoSqlDb = "http://172.19.0.4:9200";
     static String indexName = "wikimedia";
+
+    static String connKafkaTopics = "localhost:9092";
+    static String topicName = "wikimedia.recentchange";
+    static String groupId = "grupo-firme";
+
     
     public static RestHighLevelClient createOpenSearchClient() {
         //String connString = "http://localhost:9200";
@@ -49,7 +53,7 @@ public class App
 
         // we build a URI from the connection string
         RestHighLevelClient restHighLevelClient;
-        URI connUri = URI.create(connString);
+        URI connUri = URI.create(connNoSqlDb);
         // extract login information if it exists
         String userInfo = connUri.getUserInfo();
 
@@ -85,17 +89,13 @@ public class App
     }
 
     private static KafkaConsumer<String, String> createKafkaConsumer(){
-
-        //String boostrapServers = "127.0.0.1:9092";
-        //String groupId = "consumer-opensearch-demo";
-
         // create consumer configs
         Properties properties = new Properties();
-        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, connString);
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, connKafkaTopics);
         properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
 
         // create consumer
@@ -131,10 +131,11 @@ public class App
 
         try {
             // we subscribe the consumer
-            consumer.subscribe(Collections.singleton(indexName+".recentchange"));
+            consumer.subscribe(Collections.singleton(topicName));
             while(true) {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(3000));
                 int recordCount = records.count();
+                if (recordCount == 0) break;
                 log.info("Received " + recordCount + " record(s)");
             }
         } catch (Exception e) {
