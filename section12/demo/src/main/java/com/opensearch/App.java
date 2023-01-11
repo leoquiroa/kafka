@@ -43,14 +43,11 @@ public class App
 
     static String connKafkaTopics = "localhost:9092";
     static String topicName = "wikimedia.recentchange";
-    static String groupId = "grupo-firme";
+    static String groupId = "MVP";
 
-    
+    static Logger log = LoggerFactory.getLogger(App.class.getSimpleName());
+
     public static RestHighLevelClient createOpenSearchClient() {
-        //String connString = "http://localhost:9200";
-        //String connString = "http://172.19.0.2:9200";
-        // String connString = "https://c9p5mwld41:45zeygn9hy@kafka-course-2322630105.eu-west-1.bonsaisearch.net:443";
-
         // we build a URI from the connection string
         RestHighLevelClient restHighLevelClient;
         URI connUri = URI.create(connNoSqlDb);
@@ -97,22 +94,13 @@ public class App
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-
         // create consumer
         return new KafkaConsumer<>(properties);
-
     }
 
-    public static void main( String[] args ) throws IOException{
-        // create the log object
-        Logger log = LoggerFactory.getLogger(App.class.getSimpleName());
+    private static RestHighLevelClient createOrRetrieveIndexOnOpenSource(){
         // first create an OpenSearch Client
         RestHighLevelClient openSearchClient = createOpenSearchClient();
-        // create our Kafka Client
-        KafkaConsumer<String, String> consumer = createKafkaConsumer();
-        
-
-        // we need to create the index on OpenSearch if it doesn't exist already
         try{
             boolean theIndexExist = openSearchClient.indices().exists(
                 new GetIndexRequest(indexName), 
@@ -128,20 +116,43 @@ public class App
             log.error(e.toString());
             log.info("Error creating the topic " + indexName);
         }
+        return openSearchClient;
+    }
 
+    private static void oneByOneWithRepeated(KafkaConsumer<String, String> consumer,RestHighLevelClient openSearchClient){
+        //get full data from the topic and send it to the index
         try {
             // we subscribe the consumer
             consumer.subscribe(Collections.singleton(topicName));
             while(true) {
+                //pull the data
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(3000));
                 int recordCount = records.count();
                 if (recordCount == 0) break;
                 log.info("Received " + recordCount + " record(s)");
+                //iterate through the data and submit them to OpenSearch
+                for (ConsumerRecord<String, String> oneRecord : records) {
+                    IndexRequest indexRequest = new IndexRequest(indexName).source(oneRecord.value(), XContentType.JSON);
+                    IndexResponse response = openSearchClient.index(indexRequest, RequestOptions.DEFAULT);
+                    System.out.println(response);
+                    //if (response != null) log.info(response.getId());
+                }
             }
         } catch (Exception e) {
             log.error(e.toString());
             log.info("Error getting data from the topic " + indexName);
         }
+    }
+
+    public static void main( String[] args ) throws IOException{
+        // create the log object
+        //Logger log = LoggerFactory.getLogger(App.class.getSimpleName());
+        // create our Kafka Client
+        KafkaConsumer<String, String> consumer = createKafkaConsumer();
+        // we need to create the index on OpenSearch if it doesn't exist already
+        RestHighLevelClient openSearchClient = createOrRetrieveIndexOnOpenSource();
+        //alternative 1, but with possible loss of information
+        oneByOneWithRepeated(consumer,openSearchClient);
     }
 }
 
