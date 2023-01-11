@@ -43,7 +43,7 @@ public class App
 
     static String connKafkaTopics = "localhost:9092";
     static String topicName = "wikimedia.recentchange";
-    static String groupId = "MVP";
+    static String groupId = "MVP2";
 
     static Logger log = LoggerFactory.getLogger(App.class.getSimpleName());
 
@@ -119,7 +119,7 @@ public class App
         return openSearchClient;
     }
 
-    private static void oneByOneWithRepeated(KafkaConsumer<String, String> consumer,RestHighLevelClient openSearchClient){
+    private static void pullDataFromTopic(KafkaConsumer<String, String> consumer,RestHighLevelClient openSearchClient){
         //get full data from the topic and send it to the index
         try {
             // we subscribe the consumer
@@ -131,12 +131,9 @@ public class App
                 if (recordCount == 0) break;
                 log.info("Received " + recordCount + " record(s)");
                 //iterate through the data and submit them to OpenSearch
-                for (ConsumerRecord<String, String> oneRecord : records) {
-                    IndexRequest indexRequest = new IndexRequest(indexName).source(oneRecord.value(), XContentType.JSON);
-                    IndexResponse response = openSearchClient.index(indexRequest, RequestOptions.DEFAULT);
-                    System.out.println(response);
-                    //if (response != null) log.info(response.getId());
-                }
+                //oneByOneWithPossibleRepetition(records,openSearchClient);
+                oneByOneUniqueComposeId(records,openSearchClient);
+                //oneByOneIdFromRecord(records,openSearchClient);
             }
         } catch (Exception e) {
             log.error(e.toString());
@@ -144,18 +141,52 @@ public class App
         }
     }
 
+    private static String extractId(String json){
+        // gson library
+        return JsonParser.parseString(json)
+                .getAsJsonObject()
+                .get("meta")
+                .getAsJsonObject()
+                .get("id")
+                .getAsString();
+    }
+
+
+    private static void oneByOneIdFromRecord(ConsumerRecords<String, String> records,RestHighLevelClient openSearchClient) throws IOException{
+        for (ConsumerRecord<String, String> oneRecord : records) {
+            String id = extractId(oneRecord.value());
+            IndexRequest indexRequest = new IndexRequest(indexName).source(oneRecord.value(), XContentType.JSON).id(id);
+            IndexResponse response = openSearchClient.index(indexRequest, RequestOptions.DEFAULT);
+            System.out.println(response);
+        }
+    }
+
+    private static void oneByOneUniqueComposeId(ConsumerRecords<String, String> records,RestHighLevelClient openSearchClient) throws IOException{
+        for (ConsumerRecord<String, String> oneRecord : records) {
+            String id = oneRecord.topic() + "_" + oneRecord.partition() + "_" + oneRecord.offset();
+            IndexRequest indexRequest = new IndexRequest(indexName).source(oneRecord.value(), XContentType.JSON).id(id);
+            IndexResponse response = openSearchClient.index(indexRequest, RequestOptions.DEFAULT);
+            System.out.println(response);
+        }
+    }
+
+    private static void oneByOneWithPossibleRepetition(ConsumerRecords<String, String> records,RestHighLevelClient openSearchClient) throws IOException{
+        for (ConsumerRecord<String, String> oneRecord : records) {
+            IndexRequest indexRequest = new IndexRequest(indexName).source(oneRecord.value(), XContentType.JSON);
+            IndexResponse response = openSearchClient.index(indexRequest, RequestOptions.DEFAULT);
+            System.out.println(response);
+        }
+    }
+
     public static void main( String[] args ) throws IOException{
-        // create the log object
-        //Logger log = LoggerFactory.getLogger(App.class.getSimpleName());
         // create our Kafka Client
         KafkaConsumer<String, String> consumer = createKafkaConsumer();
         // we need to create the index on OpenSearch if it doesn't exist already
         RestHighLevelClient openSearchClient = createOrRetrieveIndexOnOpenSource();
         //alternative 1, but with possible loss of information
-        oneByOneWithRepeated(consumer,openSearchClient);
+        pullDataFromTopic(consumer,openSearchClient);
     }
 }
 
-//88    .7
 //95    .75
 //101   .8
