@@ -1,6 +1,11 @@
 package com.opensearch;
 
-import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.net.URI;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.Properties;
+
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -12,8 +17,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.opensearch.action.bulk.BulkRequest;
-import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.RequestOptions;
@@ -25,11 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.URI;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.Properties;
+import com.google.gson.JsonParser;
 
 
 /**
@@ -43,7 +42,7 @@ public class App
 
     static String connKafkaTopics = "localhost:9092";
     static String topicName = "wikimedia.recentchange";
-    static String groupId = "MVP2";
+    static String groupId = "MVP057";
 
     static Logger log = LoggerFactory.getLogger(App.class.getSimpleName());
 
@@ -131,8 +130,8 @@ public class App
                 if (recordCount == 0) break;
                 log.info("Received " + recordCount + " record(s)");
                 //iterate through the data and submit them to OpenSearch
-                //oneByOneWithPossibleRepetition(records,openSearchClient);
-                oneByOneUniqueComposeId(records,openSearchClient);
+                oneByOneWithPossibleRepetition(records,openSearchClient);
+                //oneByOneUniqueComposeId(records,openSearchClient);
                 //oneByOneIdFromRecord(records,openSearchClient);
             }
         } catch (Exception e) {
